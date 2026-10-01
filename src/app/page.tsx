@@ -1,35 +1,59 @@
-import Image from "next/image";
+"use client";
+
+import { useEffect, useState } from "react";
+
+type Room = "video" | "record" | "book";
+
+const rooms: Room[] = ["video", "record", "book"];
+const names: Record<Room, string> = { video: "Tapes", record: "Records", book: "Books" };
+const hashes: Record<Room, string> = { video: "video", record: "records", book: "books" };
+
+function roomFromHash(): Room {
+  const hash = window.location.hash.replace("#", "");
+  if (hash === "records" || hash === "record") return "record";
+  if (hash === "books" || hash === "book") return "book";
+  return "video";
+}
 
 export default function Home() {
-  return (
-    <div className="relative min-h-screen overflow-hidden">
-      {/* Hero: full-bleed image container */}
-      <div className="absolute inset-0">
-        <Image
-          src="/images/pranksterface.png"
-          alt="Scary Prankster"
-          fill
-          className="object-cover object-center"
-          priority
-          sizes="100vw"
-        />
-        {/* Low-opacity black overlay */}
-        <div className="absolute inset-0 bg-black/55" aria-hidden />
-      </div>
+  const [room, setRoom] = useState<Room>("video");
 
-      {/* Content overlay: centered, z-index above image */}
-      <div className="relative z-10 flex min-h-screen flex-col items-center justify-center px-6 text-center">
-        <h1 className="font-sans text-5xl font-bold tracking-tight sm:text-7xl">
-          Scary Prankster
-        </h1>
-        <p className="font-mono mt-6 max-w-2xl text-lg text-[#e8e8e8]/90 sm:text-xl">
-          The dark of the Void is infinite but the light of Creation is
-          endless....
-        </p>
-        <p className="font-mono mt-4 text-sm text-[#e8e8e8]/60">
-          Coming soon.
-        </p>
+  useEffect(() => {
+    const sync = () => setRoom(roomFromHash());
+    sync();
+    window.addEventListener("hashchange", sync);
+    return () => window.removeEventListener("hashchange", sync);
+  }, []);
+
+  return (
+    <main>
+      <div className="stage">
+        <div className="scene-frame">
+          {rooms.map((id) => (
+            <div
+              key={id}
+              className={`scene scene-${id}`}
+              style={{ opacity: room === id ? 1 : 0 }}
+              aria-hidden={room !== id}
+            />
+          ))}
+          <div className="scene-shade" aria-hidden="true" />
+          <div className="crt-life" style={{ opacity: room === "video" ? 1 : 0 }} aria-hidden="true" />
+          <a className={`hotspot hotspot-tape${room === "video" ? " is-here" : ""}`} href={`#${hashes.video}`} aria-current={room === "video" ? "page" : undefined}>
+            <span>Tapes</span>
+          </a>
+          <a className={`hotspot hotspot-book${room === "book" ? " is-here" : ""}`} href={`#${hashes.book}`} aria-current={room === "book" ? "page" : undefined}>
+            <span>Books</span>
+          </a>
+          <a className={`hotspot hotspot-record${room === "record" ? " is-here" : ""}`} href={`#${hashes.record}`} aria-current={room === "record" ? "page" : undefined}>
+            <span>Records</span>
+          </a>
+        </div>
+        <div className="film-grain" aria-hidden="true" />
+        <div className="scene-status" aria-live="polite">
+          <span className="status-lamp" /> SCARY PRANKSTER <span className="status-divider">/</span> {names[room]}
+        </div>
       </div>
-    </div>
+    </main>
   );
 }
