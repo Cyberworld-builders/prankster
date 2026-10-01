@@ -1,12 +1,12 @@
 # Scary Prankster
 
-A single scrolling storefront for video, records, and books. The counter and its three objects stay in frame while the shop around them changes. Picking up an object opens a small media experiment.
+A single storefront for video, records, and books. The counter stays in frame. The tape, the book, and the record are links into their rooms, and the shop behind them changes.
 
 ```bash
 npm install
 npm run dev
 ```
 
-The three optimized WebP scenes in `public/scenes` are original project artwork generated for this prototype. They share one camera position and foreground so the store transition feels continuous. The artwork is roughly 640 KB total. The scene changes on scroll; the VHS, book, and record are transparent semantic buttons positioned over their photographed counterparts. The media interactions contain placeholder material until the content API exists.
+The three shop photographs in `public/scenes` share one camera so the store transition feels continuous. The VHS, book, and record sit on the counter, and each one is a link. `#video`, `#records`, and `#books` select the room. Content for what you find inside an object comes later.
 
 Build with `npm run build`. This is an experiential prototype, not a finished content player.
