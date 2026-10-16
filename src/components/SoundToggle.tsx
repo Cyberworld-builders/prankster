@@ -69,21 +69,3 @@ export function SoundToggle({ onSoundChange }: SoundToggleProps) {
     </button>
   );
 }
-
-export function useSoundPreference(): [boolean, (v: boolean) => void] {
-  const [soundEnabled, setSoundEnabled] = useState(false);
-
-  useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored === "true") {
-      setSoundEnabled(true);
-    }
-  }, []);
-
-  const setSound = (value: boolean) => {
-    setSoundEnabled(value);
-    localStorage.setItem(STORAGE_KEY, String(value));
-  };
-
-  return [soundEnabled, setSound];
-}

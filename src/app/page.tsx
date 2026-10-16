@@ -48,7 +48,6 @@ export default function Home() {
   const [room, setRoom] = useState<Room>("video");
   const [activeArtifact, setActiveArtifact] = useState<Artifact | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(false);
-  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
 
   const openArtifact = useCallback((artifact: Artifact) => {
     setActiveArtifact(artifact);
@@ -80,26 +79,8 @@ export default function Home() {
     return () => window.removeEventListener("hashchange", syncFromHash);
   }, [syncFromHash]);
 
-  useEffect(() => {
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    setPrefersReducedMotion(mq.matches);
-    const handler = (e: MediaQueryListEvent) => setPrefersReducedMotion(e.matches);
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, []);
-
-  const handleHotspotClick = (targetRoom: Room, e: React.MouseEvent | React.KeyboardEvent) => {
+  const handleHotspotClick = (targetRoom: Room, e: React.MouseEvent) => {
     if (targetRoom === room) {
-      e.preventDefault();
-      const artifact = getFirstArtifactForRoom(room);
-      if (artifact) {
-        openArtifact(artifact);
-      }
-    }
-  };
-
-  const handleHotspotKeyDown = (targetRoom: Room, e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && targetRoom === room) {
       e.preventDefault();
       const artifact = getFirstArtifactForRoom(room);
       if (artifact) {
@@ -125,7 +106,7 @@ export default function Home() {
 
   return (
     <main>
-      <div className={`stage${prefersReducedMotion ? " reduced-motion" : ""}`}>
+      <div className="stage">
         <div className="scene-frame">
           {rooms.map((id) => (
             <div
@@ -143,7 +124,6 @@ export default function Home() {
             aria-current={room === "video" ? "page" : undefined}
             aria-label={room === "video" ? "Open the VHS tape" : "Go to Tapes"}
             onClick={(e) => handleHotspotClick("video", e)}
-            onKeyDown={(e) => handleHotspotKeyDown("video", e)}
           >
             <span>Tapes</span>
           </a>
@@ -153,7 +133,6 @@ export default function Home() {
             aria-current={room === "book" ? "page" : undefined}
             aria-label={room === "book" ? "Open the book" : "Go to Books"}
             onClick={(e) => handleHotspotClick("book", e)}
-            onKeyDown={(e) => handleHotspotKeyDown("book", e)}
           >
             <span>Books</span>
           </a>
@@ -163,7 +142,6 @@ export default function Home() {
             aria-current={room === "record" ? "page" : undefined}
             aria-label={room === "record" ? "Play the record" : "Go to Records"}
             onClick={(e) => handleHotspotClick("record", e)}
-            onKeyDown={(e) => handleHotspotKeyDown("record", e)}
           >
             <span>Records</span>
           </a>
@@ -173,7 +151,7 @@ export default function Home() {
           <span className="status-lamp" /> SCARY PRANKSTER <span className="status-divider">/</span> {names[room]}
         </div>
         <SoundToggle onSoundChange={setSoundEnabled} />
-        <AmbientSound enabled={soundEnabled} />
+        <AmbientSound enabled={soundEnabled && !activeArtifact} />
       </div>
       {renderViewer()}
     </main>

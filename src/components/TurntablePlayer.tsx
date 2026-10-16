@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useRef, useState } from "react";
 import type { Artifact } from "@/content/artifacts";
+import { seekKey, useDialog } from "./useDialog";
 
 interface TurntablePlayerProps {
   artifact: Artifact;
@@ -15,28 +16,6 @@ export function TurntablePlayer({ artifact, onClose }: TurntablePlayerProps) {
   const [progress, setProgress] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(artifact.duration || 0);
-
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        onClose();
-      } else if (e.key === " " || e.key === "Enter") {
-        e.preventDefault();
-        togglePlay();
-      }
-    },
-    [onClose]
-  );
-
-  useEffect(() => {
-    document.addEventListener("keydown", handleKeyDown);
-    containerRef.current?.focus();
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = "";
-    };
-  }, [handleKeyDown]);
 
   const handleTimeUpdate = () => {
     const audio = audioRef.current;
@@ -63,16 +42,12 @@ export function TurntablePlayer({ artifact, onClose }: TurntablePlayerProps) {
 
   const togglePlay = () => {
     const audio = audioRef.current;
-    if (audio) {
-      if (audio.paused) {
-        audio.play();
-        setIsPlaying(true);
-      } else {
-        audio.pause();
-        setIsPlaying(false);
-      }
-    }
+    if (!audio) return;
+    if (audio.paused) audio.play().catch(() => {});
+    else audio.pause();
   };
+
+  useDialog(containerRef, onClose, togglePlay);
 
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60);
@@ -118,6 +93,7 @@ export function TurntablePlayer({ artifact, onClose }: TurntablePlayerProps) {
           <div
             className="turntable-progress"
             onClick={handleSeek}
+            onKeyDown={(e) => seekKey(e, audioRef.current)}
             role="slider"
             aria-label="Audio progress"
             aria-valuenow={Math.round(progress)}
@@ -139,7 +115,8 @@ export function TurntablePlayer({ artifact, onClose }: TurntablePlayerProps) {
           src={artifact.src}
           onTimeUpdate={handleTimeUpdate}
           onLoadedMetadata={handleLoadedMetadata}
-          onEnded={() => setIsPlaying(false)}
+          onPlay={() => setIsPlaying(true)}
+          onPause={() => setIsPlaying(false)}
           aria-label={artifact.title}
         />
         <button

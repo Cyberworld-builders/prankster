@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Artifact } from "@/content/artifacts";
+import { seekKey, useDialog } from "./useDialog";
 
 interface VHSViewerProps {
   artifact: Artifact;
@@ -15,35 +16,6 @@ export function VHSViewer({ artifact, onClose }: VHSViewerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [showStatic, setShowStatic] = useState(true);
-
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        onClose();
-      } else if (e.key === " " || e.key === "Enter") {
-        e.preventDefault();
-        const video = videoRef.current;
-        if (video) {
-          if (video.paused) {
-            video.play();
-          } else {
-            video.pause();
-          }
-        }
-      }
-    },
-    [onClose]
-  );
-
-  useEffect(() => {
-    document.addEventListener("keydown", handleKeyDown);
-    containerRef.current?.focus();
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = "";
-    };
-  }, [handleKeyDown]);
 
   useEffect(() => {
     const staticTimer = setTimeout(() => setShowStatic(false), 800);
@@ -74,14 +46,12 @@ export function VHSViewer({ artifact, onClose }: VHSViewerProps) {
 
   const togglePlay = () => {
     const video = videoRef.current;
-    if (video) {
-      if (video.paused) {
-        video.play();
-      } else {
-        video.pause();
-      }
-    }
+    if (!video) return;
+    if (video.paused) video.play().catch(() => {});
+    else video.pause();
   };
+
+  useDialog(containerRef, onClose, togglePlay);
 
   return (
     <div
@@ -136,6 +106,7 @@ export function VHSViewer({ artifact, onClose }: VHSViewerProps) {
           <div
             className="vhs-progress"
             onClick={handleSeek}
+            onKeyDown={(e) => seekKey(e, videoRef.current)}
             role="slider"
             aria-label="Video progress"
             aria-valuenow={Math.round(progress)}

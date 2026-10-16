@@ -8,40 +8,32 @@ interface AmbientSoundProps {
 }
 
 export function AmbientSound({ enabled, src = "/media/ambient-room.mp3" }: AmbientSoundProps) {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    if (!audioRef.current) {
-      audioRef.current = new Audio(src);
-      audioRef.current.loop = true;
-      audioRef.current.volume = 0.15;
-    }
-
     const audio = audioRef.current;
-
-    if (enabled) {
-      audio.play().catch(() => {
-        // Autoplay blocked, that's fine—user hasn't interacted yet
-      });
-    } else {
+    if (!audio) return;
+    audio.volume = 0.15;
+    if (!enabled) {
       audio.pause();
+      return;
     }
 
+    // A saved "sound on" preference is restored before the visitor has
+    // interacted, so the browser blocks play(). Retry on the first gesture.
+    const retry = () => {
+      audio.play().catch(() => {});
+    };
+    audio.play().catch(() => {
+      window.addEventListener("pointerdown", retry, { once: true });
+      window.addEventListener("keydown", retry, { once: true });
+    });
     return () => {
+      window.removeEventListener("pointerdown", retry);
+      window.removeEventListener("keydown", retry);
       audio.pause();
     };
-  }, [enabled, src]);
+  }, [enabled]);
 
-  useEffect(() => {
-    return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
-      }
-    };
-  }, []);
-
-  return null;
+  return <audio ref={audioRef} className="ambient-sound" src={src} loop preload="none" aria-hidden="true" />;
 }

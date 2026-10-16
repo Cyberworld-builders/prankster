@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Artifact } from "@/content/artifacts";
+import { useDialog } from "./useDialog";
 
 interface BookViewerProps {
   artifact: Artifact;
@@ -13,28 +14,14 @@ export function BookViewer({ artifact, onClose }: BookViewerProps) {
   const [text, setText] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
 
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        onClose();
-      }
-    },
-    [onClose]
-  );
-
-  useEffect(() => {
-    document.addEventListener("keydown", handleKeyDown);
-    containerRef.current?.focus();
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = "";
-    };
-  }, [handleKeyDown]);
+  useDialog(containerRef, onClose);
 
   useEffect(() => {
     fetch(artifact.src)
-      .then((res) => res.text())
+      .then((res) => {
+        if (!res.ok) throw new Error(res.statusText);
+        return res.text();
+      })
       .then((content) => {
         setText(content);
         setIsLoading(false);

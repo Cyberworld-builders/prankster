@@ -57,14 +57,14 @@ npm run start
 
 ### Ambient Sound
 
-A subtle ambient room tone plays when enabled via the sound toggle (speaker icon, top-right). The preference is saved in localStorage. Ambient sound respects autoplay policies—it only plays after user interaction.
+A subtle ambient room tone plays when enabled via the sound toggle (speaker icon, top-right). The preference is saved in localStorage. Browsers block sound before the visitor interacts, so a saved "on" preference starts on the first click or key press. Ambient sound pauses while an artifact is open.
 
 To customize ambient audio, replace `public/media/ambient-room.mp3`.
 
 ### Accessibility
 
-- **Keyboard**: Enter/Space to play/pause, Escape to close overlays
-- **Focus traps**: Overlays capture focus until closed
+- **Keyboard**: Enter/Space on the open player toggles play/pause, arrow keys seek on the progress bar, Escape closes. Buttons inside keep their own Enter/Space.
+- **Focus traps**: Overlays keep Tab inside until closed, then return focus to the object that opened them
 - **Captions**: Video supports WebVTT caption tracks
 - **ARIA labels**: All interactive elements are labeled
 - **Reduced motion**: Animations are disabled when `prefers-reduced-motion` is set
@@ -75,5 +75,16 @@ Keep media small for fast loading:
 - Video: Under 10MB, use H.264 with CRF 28-32
 - Audio: Under 2MB, use MP3 at 128kbps or lower
 - Images: Under 200KB, use WebP or compressed JPEG
+
+### Browser check
+
+`scripts/verify-artifacts.mjs` drives Chromium through every viewer (open, play, keyboard, Back, deep links, reduced motion, 375/320px phones) and saves screenshots to `/tmp/prankster-artifacts-evidence`:
+
+```bash
+npm run build && npm run start   # or npm run dev
+BASE_URL=http://localhost:3000 npm run verify:artifacts
+```
+
+The first run may need `npx playwright install chromium`. To check a protected Vercel preview, see the header of the script.
 
 Build with `npm run build`. This is an experiential prototype, not a finished content player.

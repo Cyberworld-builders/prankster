@@ -58,7 +58,7 @@
 .book-binding{position:absolute;left:12px;top:0;bottom:0;width:3px;background:linear-gradient(90deg,#a08b68,#8b7355,#a08b68);box-shadow:1px 0 3px rgba(0,0,0,0.2)}
 .book-content{position:relative;color:#2a231b}
 .book-title{font:bold 20px Georgia,serif;color:#3d3426;margin:0 0 20px 0;text-align:center;border-bottom:1px solid #c9b896;padding-bottom:15px}
-.book-placeholder-badge{position:absolute;top:0;right:0;background:#c54931;color:#fff;padding:3px 6px;font:8px 'Courier New',monospace;letter-spacing:0.05em}
+.book-placeholder-badge{display:table;margin:-8px auto 18px;background:#c54931;color:#fff;padding:3px 6px;font:8px 'Courier New',monospace;letter-spacing:0.05em}
 .book-text{font:16px/1.8 Georgia,serif;color:#3d3426}
 .book-text p{margin:0 0 16px 0;text-indent:1.5em}
 .book-text p:first-child{text-indent:0}
@@ -66,10 +66,8 @@
 .book-close{position:absolute;top:-12px;right:-12px;width:32px;height:32px;background:#c54931;border:none;color:#fff;font-size:16px;cursor:pointer;border-radius:50%;line-height:1;z-index:1}
 .book-close:hover{background:#e05a42}
 
-/* Reduced motion overrides */
-.reduced-motion .turntable-disc.is-spinning{animation:none}
-.reduced-motion .vhs-static{animation:none}
-.reduced-motion .turntable-arm{transition:none}
+/* Reduced motion overrides (the viewers render outside .stage, so use the media query) */
+@media(prefers-reduced-motion:reduce){.turntable-disc.is-spinning,.vhs-static{animation:none}.turntable-arm{transition:none}}
 
 /* Mobile adjustments */
 @media(max-width:750px){
