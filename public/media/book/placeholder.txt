@@ -1,0 +1,15 @@
+— PLACEHOLDER TEXT —
+
+The room smelled of old paper and something faintly electrical.
+
+She picked up the book from the counter, its spine cracked and faded. The pages fell open to a passage marked in pencil, words underlined with a trembling hand:
+
+"What you are looking for is not here. It was never here. But you knew that already, didn't you?"
+
+The ink seemed to shift in the dim light.
+
+She turned the page, but there was nothing more.
+
+— END OF PLACEHOLDER —
+
+[This text will be replaced with real content. Edit artifacts.ts and add your file to public/media/book/.]
