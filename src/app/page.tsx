@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 type Room = "video" | "record" | "book";
@@ -42,8 +43,8 @@ export default function Home() {
           <a className={`hotspot hotspot-tape${room === "video" ? " is-here" : ""}`} href={`#${hashes.video}`} aria-current={room === "video" ? "page" : undefined}>
             <span>Tapes</span>
           </a>
-          <a className={`hotspot hotspot-book${room === "book" ? " is-here" : ""}`} href={`#${hashes.book}`} aria-current={room === "book" ? "page" : undefined}>
-            <span>Books</span>
+          <a className={`hotspot hotspot-book${room === "book" ? " is-here" : ""}`} href={room === "book" ? "/books" : `#${hashes.book}`}>
+            <span>{room === "book" ? "Enter the library" : "Books"}</span>
           </a>
           <a className={`hotspot hotspot-record${room === "record" ? " is-here" : ""}`} href={`#${hashes.record}`} aria-current={room === "record" ? "page" : undefined}>
             <span>Records</span>
@@ -52,6 +53,12 @@ export default function Home() {
         <div className="film-grain" aria-hidden="true" />
         <div className="scene-status" aria-live="polite">
           <span className="status-lamp" /> SCARY PRANKSTER <span className="status-divider">/</span> {names[room]}
+          {room === "book" && (
+            <>
+              <span className="status-divider">/</span>
+              <Link href="/books" className="status-enter">Enter the library &rarr;</Link>
+            </>
+          )}
         </div>
       </div>
     </main>
