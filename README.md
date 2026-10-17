@@ -85,6 +85,6 @@ npm run build && npm run start   # or npm run dev
 BASE_URL=http://localhost:3000 npm run verify:artifacts
 ```
 
-The first run may need `npx playwright install chromium`. To check a protected Vercel preview, see the header of the script.
+The first run may need `npx playwright install chromium`. Check your work this way rather than through the Vercel preview, which sits behind Vercel Authentication. Look at the screenshots, not just the `ok` lines.
 
 Build with `npm run build`. This is an experiential prototype, not a finished content player.

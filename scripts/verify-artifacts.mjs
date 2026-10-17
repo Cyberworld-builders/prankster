@@ -2,9 +2,6 @@
 //
 //   BASE_URL=http://localhost:3000 node scripts/verify-artifacts.mjs
 //
-// Protected Vercel previews: export VERCEL_OIDC_TOKEN (from `vercel env pull`
-// on a linked checkout) and point BASE_URL at the preview. The token is sent
-// as x-vercel-trusted-oidc-idp-token on same-origin requests only.
 // CHROMIUM_PATH=/usr/bin/chromium uses a system browser instead of Playwright's
 // bundled one. Tape playback is skipped if the browser can't decode H.264.
 import { chromium } from 'playwright'
@@ -26,11 +23,6 @@ const pass = name => { checks.push(name); console.log(`ok  ${name}`) }
 async function openPage(viewport, options = {}) {
   const context = await browser.newContext({ viewport, ...options })
   const page = await context.newPage()
-  if (process.env.VERCEL_OIDC_TOKEN) {
-    await page.route(`${new URL(baseUrl).origin}/**`, route => route.continue({
-      headers: { ...route.request().headers(), 'x-vercel-trusted-oidc-idp-token': process.env.VERCEL_OIDC_TOKEN },
-    }))
-  }
   const errors = []
   page.on('pageerror', error => errors.push(error.message))
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
