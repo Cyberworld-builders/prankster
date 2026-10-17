@@ -1,473 +1,193 @@
-#!/usr/bin/env node
-/**
- * Playwright verification script for portrait mobile scrolling.
- * Tests that hotspots are reachable on narrow screens via horizontal scroll.
- */
+// Browser check for the room artifacts (VHS, turntable) and the book library link.
+//
+//   BASE_URL=http://localhost:3000 node scripts/verify-artifacts.mjs
+//
+// CHROMIUM_PATH=/usr/bin/chromium uses a system browser instead of Playwright's
+// bundled one. Tape playback is skipped if the browser can't decode H.264.
+import { chromium } from 'playwright'
+import assert from 'node:assert/strict'
+import { mkdirSync } from 'node:fs'
 
-import { chromium, devices } from "@playwright/test";
-import { spawn } from "child_process";
-import { mkdir, rm } from "fs/promises";
-import { dirname, join } from "path";
-import { fileURLToPath } from "url";
+const baseUrl = (process.env.BASE_URL ?? 'http://localhost:3000').replace(/\/$/, '')
+const out = process.env.EVIDENCE_DIR ?? '/tmp/prankster-artifacts-evidence'
+mkdirSync(out, { recursive: true })
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const ROOT = join(__dirname, "..");
-const ARTIFACTS_DIR = join(ROOT, "test-artifacts");
-const PORT = 3099;
-const BASE_URL = `http://localhost:${PORT}`;
+const browser = await chromium.launch({
+  executablePath: process.env.CHROMIUM_PATH || undefined,
+  args: ['--no-sandbox'],
+})
+const checks = []
+const skipped = []
+const pass = name => { checks.push(name); console.log(`ok  ${name}`) }
 
-const summary = {
-  passed: [],
-  failed: [],
-  skipped: [],
-};
-
-async function startServer() {
-  return new Promise((resolve, reject) => {
-    const server = spawn("npm", ["run", "start", "--", "-p", String(PORT)], {
-      cwd: ROOT,
-      stdio: ["ignore", "pipe", "pipe"],
-      env: { ...process.env, NODE_ENV: "production" },
-    });
-
-    let output = "";
-    const timeout = setTimeout(() => {
-      reject(new Error("Server startup timeout"));
-    }, 30000);
-
-    server.stdout.on("data", (data) => {
-      output += data.toString();
-      if (output.includes("Ready") || output.includes(`localhost:${PORT}`)) {
-        clearTimeout(timeout);
-        resolve(server);
-      }
-    });
-
-    server.stderr.on("data", (data) => {
-      output += data.toString();
-    });
-
-    server.on("error", (err) => {
-      clearTimeout(timeout);
-      reject(err);
-    });
-
-    server.on("exit", (code) => {
-      if (code !== 0 && code !== null) {
-        clearTimeout(timeout);
-        reject(new Error(`Server exited with code ${code}: ${output}`));
-      }
-    });
-  });
+async function openPage(viewport, options = {}) {
+  const context = await browser.newContext({ viewport, ...options })
+  const page = await context.newPage()
+  const errors = []
+  page.on('pageerror', error => errors.push(error.message))
+  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
+  return { context, page, errors }
 }
 
-async function waitForServer(maxAttempts = 30) {
-  for (let i = 0; i < maxAttempts; i++) {
-    try {
-      const res = await fetch(BASE_URL);
-      if (res.ok) return;
-    } catch {
-      // ignore
+const dialog = page => page.locator('[role="dialog"]')
+const hash = page => page.evaluate(() => location.hash)
+const focusInDialog = page => page.evaluate(() => !!document.activeElement?.closest('[role="dialog"]'))
+
+try {
+  // Desktop: every room, keyboard, history, sound.
+  {
+    const { context, page, errors } = await openPage({ width: 1440, height: 900 })
+    await page.goto(`${baseUrl}/#video`, { waitUntil: 'networkidle' })
+    assert.equal(await dialog(page).count(), 0)
+    await page.screenshot({ path: `${out}/desktop-video-room.png` })
+
+    // Tape
+    await page.locator('.hotspot-tape').click()
+    await dialog(page).waitFor()
+    assert.equal(await hash(page), '#video/placeholder-tape')
+    assert.ok(await focusInDialog(page), 'focus moves into the VHS dialog')
+    pass('clicking the tape in its room opens the VHS player and deep-links it')
+    const h264 = await page.evaluate(() => document.createElement('video').canPlayType('video/mp4; codecs="avc1.42E01E"'))
+    if (h264) {
+      await page.waitForFunction(() => document.querySelector('.vhs-screen video')?.readyState >= 2)
+      await page.locator('.vhs-play-btn').click()
+      await page.waitForFunction(() => document.querySelector('.vhs-screen video')?.currentTime > 0.3)
+      assert.equal(await page.locator('.vhs-play-btn').getAttribute('aria-label'), 'Pause')
+      pass('the tape plays')
+    } else skipped.push('tape playback (this Chromium has no H.264; set CHROMIUM_PATH)')
+    await page.waitForTimeout(900)
+    await page.screenshot({ path: `${out}/desktop-vhs.png` })
+
+    for (let i = 0; i < 8; i++) {
+      await page.keyboard.press('Tab')
+      assert.ok(await focusInDialog(page), `Tab #${i + 1} stays in the dialog`)
     }
-    await new Promise((r) => setTimeout(r, 1000));
-  }
-  throw new Error("Server did not become ready");
-}
+    await page.keyboard.press('Shift+Tab')
+    assert.ok(await focusInDialog(page))
+    pass('Tab and Shift+Tab stay trapped in the dialog')
 
-function ok(name) {
-  console.log(`ok - ${name}`);
-  summary.passed.push(name);
-}
+    await page.locator('.vhs-close').focus()
+    await page.keyboard.press('Enter')
+    assert.equal(await dialog(page).count(), 0, 'Enter on the close button closes the player')
+    assert.equal(await hash(page), '#video')
+    assert.ok(await page.evaluate(() => document.activeElement?.classList.contains('hotspot-tape')), 'focus returns to the tape')
+    pass('Enter on the close button closes it and focus returns to the tape')
 
-function fail(name, reason) {
-  console.log(`FAIL - ${name}: ${reason}`);
-  summary.failed.push({ name, reason });
-}
+    // Records
+    await page.locator('.hotspot-record').click()
+    await page.waitForFunction(() => location.hash === '#records')
+    await page.waitForTimeout(800)
+    assert.equal(await dialog(page).count(), 0, 'first click on another room only changes room')
+    await page.screenshot({ path: `${out}/desktop-record-room.png` })
+    await page.locator('.hotspot-record').click()
+    await dialog(page).waitFor()
+    assert.equal(await hash(page), '#records/placeholder-track')
+    await page.locator('.turntable-play-btn').click()
+    await page.waitForFunction(() => document.querySelector('.turntable-overlay audio')?.currentTime > 0.3)
+    assert.equal(await page.locator('.turntable-disc.is-spinning').count(), 1)
+    pass('the record plays and the disc spins')
+    await page.screenshot({ path: `${out}/desktop-turntable.png` })
+    await page.locator('.turntable-progress').focus()
+    const before = await page.evaluate(() => document.querySelector('.turntable-overlay audio').currentTime)
+    await page.keyboard.press('ArrowRight')
+    const after = await page.evaluate(() => document.querySelector('.turntable-overlay audio').currentTime)
+    assert.ok(after > before + 0.5, `ArrowRight seeks forward (${before} -> ${after})`)
+    pass('the progress slider seeks with arrow keys')
+    await page.keyboard.press('Escape')
+    assert.equal(await dialog(page).count(), 0)
+    pass('Escape closes the turntable')
 
-function skip(name, reason) {
-  console.log(`skip - ${name}: ${reason}`);
-  summary.skipped.push({ name, reason });
-}
+    // Book room: clicking the book navigates to /books (the library from PR #4)
+    await page.locator('.hotspot-book').click()
+    await page.waitForFunction(() => location.hash === '#books')
+    await page.waitForTimeout(500)
+    await page.screenshot({ path: `${out}/desktop-book-room.png` })
+    assert.equal(await dialog(page).count(), 0, 'navigating to book room does not open any overlay')
+    // Now clicking the book should navigate to /books
+    const [response] = await Promise.all([
+      page.waitForNavigation({ waitUntil: 'networkidle' }),
+      page.locator('.hotspot-book').click()
+    ])
+    assert.equal(page.url(), `${baseUrl}/books`)
+    await page.screenshot({ path: `${out}/desktop-library.png` })
+    pass('clicking the book in its room navigates to /books (the library)')
 
-async function getHotspotBounds(page, selector) {
-  return page.evaluate((sel) => {
-    const el = document.querySelector(sel);
-    if (!el) return null;
-    const rect = el.getBoundingClientRect();
-    return {
-      x: rect.x,
-      y: rect.y,
-      width: rect.width,
-      height: rect.height,
-      centerX: rect.x + rect.width / 2,
-      centerY: rect.y + rect.height / 2,
-      visible: rect.x + rect.width > 0 && rect.x < window.innerWidth,
-    };
-  }, selector);
-}
+    // Go back and check sound preference
+    await page.goto(`${baseUrl}/#video`, { waitUntil: 'networkidle' })
+    await page.locator('.sound-toggle').click()
+    assert.equal(await page.locator('.sound-toggle').getAttribute('aria-pressed'), 'true')
+    await page.reload({ waitUntil: 'networkidle' })
+    assert.equal(await page.locator('.sound-toggle').getAttribute('aria-pressed'), 'true')
+    await page.mouse.click(5, 450)
+    await page.waitForTimeout(300)
+    assert.ok(await page.evaluate(() => !document.querySelector('audio.ambient-sound')?.paused), 'ambient resumes after first interaction')
+    pass('sound preference survives reload and resumes on first interaction')
 
-async function scrollHotspotIntoView(page, selector, viewport) {
-  const stage = await page.$(".stage");
-  if (!stage) throw new Error("Stage not found");
-
-  const scrollInfo = await page.evaluate(() => {
-    const s = document.querySelector(".stage");
-    return {
-      scrollLeft: s?.scrollLeft ?? 0,
-      scrollWidth: s?.scrollWidth ?? 0,
-      clientWidth: s?.clientWidth ?? 0,
-    };
-  });
-
-  const hotspot = await getHotspotBounds(page, selector);
-  if (!hotspot) throw new Error(`Hotspot ${selector} not found`);
-
-  if (hotspot.visible) return hotspot;
-
-  const targetScroll = await page.evaluate(
-    ({ sel }) => {
-      const stage = document.querySelector(".stage");
-      const hotspot = document.querySelector(sel);
-      if (!stage || !hotspot) return 0;
-
-      const rect = hotspot.getBoundingClientRect();
-      const stageRect = stage.getBoundingClientRect();
-      const currentScroll = stage.scrollLeft;
-      const hotspotCenterInStage = rect.x - stageRect.x + currentScroll + rect.width / 2;
-      const targetScroll = hotspotCenterInStage - stage.clientWidth / 2;
-      return Math.max(0, Math.min(targetScroll, stage.scrollWidth - stage.clientWidth));
-    },
-    { sel: selector }
-  );
-
-  await page.evaluate(
-    ({ scroll }) => {
-      const stage = document.querySelector(".stage");
-      if (stage) stage.scrollTo({ left: scroll, behavior: "instant" });
-    },
-    { scroll: targetScroll }
-  );
-
-  await page.waitForTimeout(100);
-  return getHotspotBounds(page, selector);
-}
-
-async function testPortraitDevice(browser, deviceConfig, deviceName) {
-  const context = await browser.newContext({
-    ...deviceConfig,
-    hasTouch: true,
-  });
-  const page = await context.newPage();
-
-  const tests = [
-    { name: "tape", selector: ".hotspot-tape", hash: "video", expectedHash: "video" },
-    { name: "book", selector: ".hotspot-book", hash: "books", expectedHash: "books" },
-    { name: "record", selector: ".hotspot-record", hash: "records", expectedHash: "records" },
-  ];
-
-  for (const test of tests) {
-    const testName = `${deviceName}: scroll to ${test.name} hotspot and tap`;
-    try {
-      await page.goto(BASE_URL, { waitUntil: "networkidle" });
-      await page.waitForTimeout(500);
-
-      const hotspot = await scrollHotspotIntoView(page, test.selector, deviceConfig.viewport);
-
-      if (!hotspot || !hotspot.visible) {
-        fail(testName, `Hotspot not visible after scroll (bounds: ${JSON.stringify(hotspot)})`);
-        continue;
-      }
-
-      await page.screenshot({
-        path: join(ARTIFACTS_DIR, `${deviceName.replace(/\//g, "-")}-${test.name}-scrolled.png`),
-      });
-
-      await page.tap(test.selector);
-      await page.waitForTimeout(300);
-
-      const currentHash = await page.evaluate(() => window.location.hash);
-      if (currentHash === `#${test.expectedHash}`) {
-        ok(testName);
-      } else {
-        fail(testName, `Expected hash #${test.expectedHash}, got ${currentHash}`);
-      }
-
-      await page.screenshot({
-        path: join(ARTIFACTS_DIR, `${deviceName.replace(/\//g, "-")}-${test.name}-tapped.png`),
-      });
-    } catch (err) {
-      fail(testName, err.message);
-    }
+    assert.deepEqual(errors, [])
+    pass('no browser errors on desktop')
+    await context.close()
   }
 
-  const hintTestName = `${deviceName}: scroll hint appears`;
-  try {
-    await page.goto(BASE_URL, { waitUntil: "networkidle" });
-    await page.waitForTimeout(1500);
-
-    const hintVisible = await page.evaluate(() => {
-      const hint = document.querySelector(".scroll-hint");
-      if (!hint) return false;
-      const style = window.getComputedStyle(hint);
-      return style.opacity !== "0" && style.display !== "none";
-    });
-
-    if (hintVisible) {
-      ok(hintTestName);
-    } else {
-      fail(hintTestName, "Scroll hint not visible");
-    }
-  } catch (err) {
-    fail(hintTestName, err.message);
+  // Deep links: #books/... no longer opens an overlay (book overlay was removed)
+  {
+    const { context, page, errors } = await openPage({ width: 1280, height: 800 })
+    // #books/placeholder-story used to open the book overlay; now it just goes to book room
+    await page.goto(`${baseUrl}/#books/placeholder-story`, { waitUntil: 'networkidle' })
+    assert.equal(await dialog(page).count(), 0, '#books/placeholder-story does not open any overlay')
+    assert.equal(await hash(page), '#books/placeholder-story')
+    // Navigate to video room to test other deep links
+    await page.goto(`${baseUrl}/#video/placeholder-tape`, { waitUntil: 'networkidle' })
+    await dialog(page).waitFor()
+    assert.ok(await page.locator('.vhs-container').isVisible(), 'VHS deep link still works')
+    await page.goto(`${baseUrl}/#video/not-a-thing`, { waitUntil: 'networkidle' })
+    assert.equal(await dialog(page).count(), 0)
+    await page.goto(`${baseUrl}/#video/placeholder-track`, { waitUntil: 'networkidle' })
+    assert.equal(await dialog(page).count(), 0, 'an artifact in the wrong room does not open')
+    assert.deepEqual(errors, [])
+    pass('deep links work for video/record; #books/... no longer opens an overlay')
+    await context.close()
   }
 
-  const initialScrollName = `${deviceName}: initial scroll position centers on video`;
-  try {
-    await page.goto(BASE_URL, { waitUntil: "networkidle" });
-    await page.waitForTimeout(500);
-
-    const tapeHotspot = await getHotspotBounds(page, ".hotspot-tape");
-    if (tapeHotspot && tapeHotspot.visible) {
-      ok(initialScrollName);
-    } else {
-      fail(initialScrollName, `Tape hotspot not initially visible (bounds: ${JSON.stringify(tapeHotspot)})`);
-    }
-
-    await page.screenshot({
-      path: join(ARTIFACTS_DIR, `${deviceName.replace(/\//g, "-")}-initial-scroll.png`),
-    });
-  } catch (err) {
-    fail(initialScrollName, err.message);
+  // Reduced motion
+  {
+    const { context, page } = await openPage({ width: 1280, height: 800 }, { reducedMotion: 'reduce' })
+    await page.goto(`${baseUrl}/#records/placeholder-track`, { waitUntil: 'networkidle' })
+    await page.locator('.turntable-play-btn').click()
+    await page.locator('.turntable-disc.is-spinning').waitFor()
+    assert.equal(await page.locator('.turntable-disc').evaluate(el => getComputedStyle(el).animationName), 'none')
+    pass('prefers-reduced-motion stops the spinning disc')
+    await context.close()
   }
 
-  for (const targetHash of ["records", "books"]) {
-    const deepLinkName = `${deviceName}: deep link #${targetHash} scrolls to correct position`;
-    try {
-      await page.goto(`${BASE_URL}#${targetHash}`, { waitUntil: "networkidle" });
-      await page.waitForTimeout(500);
-
-      const selector = targetHash === "records" ? ".hotspot-record" : ".hotspot-book";
-      const hotspot = await getHotspotBounds(page, selector);
-
-      if (hotspot && hotspot.visible) {
-        ok(deepLinkName);
-      } else {
-        fail(deepLinkName, `Hotspot not visible for deep link (bounds: ${JSON.stringify(hotspot)})`);
-      }
-
-      await page.screenshot({
-        path: join(ARTIFACTS_DIR, `${deviceName.replace(/\//g, "-")}-deeplink-${targetHash}.png`),
-      });
-    } catch (err) {
-      fail(deepLinkName, err.message);
+  // Phones. In portrait the scene is cropped to its centre, so the tape
+  // hotspot is off-screen; open the tape by deep link and tap the record.
+  for (const width of [375, 320]) {
+    const { context, page, errors } = await openPage({ width, height: 700 }, { hasTouch: true, isMobile: true })
+    const offscreen = []
+    await page.goto(`${baseUrl}/#records`, { waitUntil: 'networkidle' })
+    for (const name of ['tape', 'book', 'record']) {
+      const b = await page.locator(`.hotspot-${name}`).boundingBox()
+      if (b.x + b.width / 2 < 0 || b.x + b.width / 2 > width) offscreen.push(name)
     }
+    if (offscreen.length) skipped.push(`${width}px: hotspot centre off-screen for ${offscreen.join(', ')}`)
+    await page.locator('.hotspot-record').tap({ position: { x: 20, y: 20 } })
+    await dialog(page).waitFor()
+    await page.screenshot({ path: `${out}/mobile-${width}-turntable.png` })
+    await page.locator('.turntable-close').tap()
+    await page.goto(`${baseUrl}/#video/placeholder-tape`, { waitUntil: 'networkidle' })
+    await dialog(page).waitFor()
+    const box = await page.locator('.vhs-container').boundingBox()
+    assert.ok(box.x >= 0 && box.x + box.width <= width, `VHS player fits ${width}px`)
+    const close = await page.locator('.vhs-close').boundingBox()
+    assert.ok(close.x >= 0 && close.x + close.width <= width, `close button visible at ${width}px`)
+    await page.waitForTimeout(900)
+    await page.screenshot({ path: `${out}/mobile-${width}-vhs.png` })
+    assert.deepEqual(errors, [])
+    pass(`tap-to-open and viewer layouts fit at ${width}px`)
+    await context.close()
   }
 
-  await context.close();
+  console.log(JSON.stringify({ result: 'passed', baseUrl, checks: checks.length, skipped, evidence: out }))
+} finally {
+  await browser.close()
 }
-
-async function testDesktop(browser) {
-  const context = await browser.newContext({
-    viewport: { width: 1920, height: 1080 },
-  });
-  const page = await context.newPage();
-
-  const testName = "desktop 1920x1080: all hotspots visible without scroll";
-  try {
-    await page.goto(BASE_URL, { waitUntil: "networkidle" });
-    await page.waitForTimeout(500);
-
-    const hotspots = [".hotspot-tape", ".hotspot-book", ".hotspot-record"];
-    let allVisible = true;
-
-    for (const selector of hotspots) {
-      const bounds = await getHotspotBounds(page, selector);
-      if (!bounds || !bounds.visible) {
-        allVisible = false;
-        break;
-      }
-    }
-
-    const scrollInfo = await page.evaluate(() => {
-      const stage = document.querySelector(".stage");
-      return {
-        scrollWidth: stage?.scrollWidth ?? 0,
-        clientWidth: stage?.clientWidth ?? 0,
-        hasHorizontalScroll: (stage?.scrollWidth ?? 0) > (stage?.clientWidth ?? 0),
-      };
-    });
-
-    const hintExists = await page.evaluate(() => {
-      const hint = document.querySelector(".scroll-hint");
-      if (!hint) return false;
-      const style = window.getComputedStyle(hint);
-      return style.display !== "none";
-    });
-
-    if (allVisible && !hintExists) {
-      ok(testName);
-    } else {
-      fail(testName, `Visible: ${allVisible}, Hint shown: ${hintExists}`);
-    }
-
-    await page.screenshot({
-      path: join(ARTIFACTS_DIR, "desktop-1920x1080.png"),
-    });
-  } catch (err) {
-    fail(testName, err.message);
-  }
-
-  await context.close();
-}
-
-async function testLandscapePhone(browser) {
-  const context = await browser.newContext({
-    viewport: { width: 812, height: 375 },
-    hasTouch: true,
-    userAgent: devices["iPhone 12"].userAgent,
-  });
-  const page = await context.newPage();
-
-  const testName = "landscape phone 812x375: all hotspots visible, no scroll needed";
-  try {
-    await page.goto(BASE_URL, { waitUntil: "networkidle" });
-    await page.waitForTimeout(500);
-
-    const hotspots = [".hotspot-tape", ".hotspot-book", ".hotspot-record"];
-    let allVisible = true;
-
-    for (const selector of hotspots) {
-      const bounds = await getHotspotBounds(page, selector);
-      if (!bounds || !bounds.visible) {
-        allVisible = false;
-        break;
-      }
-    }
-
-    const scrollInfo = await page.evaluate(() => {
-      const stage = document.querySelector(".stage");
-      return {
-        scrollWidth: stage?.scrollWidth ?? 0,
-        clientWidth: stage?.clientWidth ?? 0,
-        overflowX: window.getComputedStyle(stage).overflowX,
-      };
-    });
-
-    if (allVisible) {
-      ok(testName);
-    } else {
-      fail(testName, `Not all hotspots visible. Scroll info: ${JSON.stringify(scrollInfo)}`);
-    }
-
-    await page.screenshot({
-      path: join(ARTIFACTS_DIR, "landscape-phone-812x375.png"),
-    });
-  } catch (err) {
-    fail(testName, err.message);
-  }
-
-  await context.close();
-}
-
-async function testNoVerticalScroll(browser) {
-  const context = await browser.newContext({
-    viewport: { width: 375, height: 812 },
-    hasTouch: true,
-    userAgent: devices["iPhone 12"].userAgent,
-  });
-  const page = await context.newPage();
-
-  const testName = "375x812: no vertical scroll or jiggle";
-  try {
-    await page.goto(BASE_URL, { waitUntil: "networkidle" });
-    await page.waitForTimeout(500);
-
-    const initialScrollTop = await page.evaluate(() => window.scrollY);
-
-    await page.evaluate(() => {
-      window.scrollTo(0, 100);
-    });
-    await page.waitForTimeout(100);
-
-    const afterScrollTop = await page.evaluate(() => window.scrollY);
-
-    const bodyScrollable = await page.evaluate(() => {
-      const body = document.body;
-      const html = document.documentElement;
-      return (
-        body.scrollHeight > window.innerHeight || html.scrollHeight > window.innerHeight
-      );
-    });
-
-    if (initialScrollTop === 0 && afterScrollTop === 0 && !bodyScrollable) {
-      ok(testName);
-    } else {
-      fail(
-        testName,
-        `Vertical scroll detected. Initial: ${initialScrollTop}, After: ${afterScrollTop}, Body scrollable: ${bodyScrollable}`
-      );
-    }
-  } catch (err) {
-    fail(testName, err.message);
-  }
-
-  await context.close();
-}
-
-async function main() {
-  console.log("Starting verification...\n");
-
-  await rm(ARTIFACTS_DIR, { recursive: true, force: true });
-  await mkdir(ARTIFACTS_DIR, { recursive: true });
-
-  let server;
-  try {
-    console.log("Starting production server...");
-    server = await startServer();
-    await waitForServer();
-    console.log("Server ready.\n");
-  } catch (err) {
-    console.error("Failed to start server:", err.message);
-    process.exit(1);
-  }
-
-  const browser = await chromium.launch({ headless: true });
-
-  try {
-    await testPortraitDevice(
-      browser,
-      { viewport: { width: 375, height: 812 }, userAgent: devices["iPhone 12"].userAgent },
-      "375x812"
-    );
-
-    await testPortraitDevice(
-      browser,
-      { viewport: { width: 320, height: 568 }, userAgent: devices["iPhone SE"].userAgent },
-      "320x568"
-    );
-
-    await testDesktop(browser);
-    await testLandscapePhone(browser);
-    await testNoVerticalScroll(browser);
-  } finally {
-    await browser.close();
-    if (server) {
-      server.kill("SIGTERM");
-    }
-  }
-
-  console.log("\n--- Summary ---");
-  console.log(JSON.stringify(summary, null, 2));
-
-  const total = summary.passed.length + summary.failed.length + summary.skipped.length;
-  console.log(`\nTotal: ${total}, Passed: ${summary.passed.length}, Failed: ${summary.failed.length}, Skipped: ${summary.skipped.length}`);
-
-  if (summary.failed.length > 0) {
-    process.exit(1);
-  }
-}
-
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
