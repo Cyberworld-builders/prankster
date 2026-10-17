@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useState, useCallback } from "react";
-import { getFirstArtifactForRoom, getArtifactById, type Artifact } from "@/content/artifacts";
+import { getFirstArtifactForRoom, getArtifactById, type Artifact, type RoomId } from "@/content/artifacts";
 import { VHSViewer } from "@/components/VHSViewer";
 import { TurntablePlayer } from "@/components/TurntablePlayer";
 import { SoundToggle } from "@/components/SoundToggle";
 import { AmbientSound } from "@/components/AmbientSound";
 
 type Room = "video" | "record" | "book";
+type ArtifactRoom = RoomId; // rooms that have artifacts (video, record)
 
 const rooms: Room[] = ["video", "record", "book"];
 const names: Record<Room, string> = { video: "Tapes", record: "Records", book: "Books" };
@@ -79,10 +80,10 @@ export default function Home() {
     return () => window.removeEventListener("hashchange", syncFromHash);
   }, [syncFromHash]);
 
-  const handleHotspotClick = (targetRoom: Room, e: React.MouseEvent) => {
+  const handleArtifactHotspotClick = (targetRoom: ArtifactRoom, e: React.MouseEvent) => {
     if (targetRoom === room) {
       e.preventDefault();
-      const artifact = getFirstArtifactForRoom(room);
+      const artifact = getFirstArtifactForRoom(targetRoom);
       if (artifact) {
         openArtifact(artifact);
       }
@@ -121,7 +122,7 @@ export default function Home() {
             href={`#${hashes.video}`}
             aria-current={room === "video" ? "page" : undefined}
             aria-label={room === "video" ? "Open the VHS tape" : "Go to Tapes"}
-            onClick={(e) => handleHotspotClick("video", e)}
+            onClick={(e) => handleArtifactHotspotClick("video", e)}
           >
             <span>Tapes</span>
           </a>
@@ -133,7 +134,7 @@ export default function Home() {
             href={`#${hashes.record}`}
             aria-current={room === "record" ? "page" : undefined}
             aria-label={room === "record" ? "Play the record" : "Go to Records"}
-            onClick={(e) => handleHotspotClick("record", e)}
+            onClick={(e) => handleArtifactHotspotClick("record", e)}
           >
             <span>Records</span>
           </a>
