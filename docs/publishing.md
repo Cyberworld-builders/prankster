@@ -89,7 +89,21 @@ Until real scans and photographs exist, posts use generated placeholder
 media: the cover drawn by `src/components/BookCover.tsx`, available in a body
 as `<Cover title creator caption />`. Real images go under
 `public/images/<slug>/` and are used with `<Figure src alt caption />` or
-`headerImage`. Do not use other people's photographs, scans or stills.
+`headerImage`. Other people's photographs, scans and stills are allowed (see
+Copyright below).
+
+### Copyright
+
+Copyright is not a blocker. The site is Jay's own library of inspiration and
+gets almost no traffic, so excerpts of copyrighted books, songs, stems, film
+scenes, scans and stills are fine. If real traffic ever brings rights holders
+who object, we'll work something out with them, or remove or gate the
+material then.
+
+Make that later step cheap: say where each excerpt comes from (edition,
+album, or film and timestamp) and whether it is public domain or
+copyrighted. Until the frontmatter has a field for it, put this in the post
+body.
 
 ### Body rules
 
