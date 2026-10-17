@@ -1,4 +1,4 @@
-// Browser check for the room artifacts (VHS, turntable, book).
+// Browser check for the room artifacts (VHS, turntable) and the book library link.
 //
 //   BASE_URL=http://localhost:3000 node scripts/verify-artifacts.mjs
 //
@@ -97,19 +97,23 @@ try {
     assert.equal(await dialog(page).count(), 0)
     pass('Escape closes the turntable')
 
-    // Books, then browser Back
+    // Book room: clicking the book navigates to /books (the library from PR #4)
     await page.locator('.hotspot-book').click()
     await page.waitForFunction(() => location.hash === '#books')
-    await page.locator('.hotspot-book').click()
-    await page.locator('.book-text').waitFor()
-    assert.match(await page.locator('.book-text').textContent(), /old paper/)
-    await page.screenshot({ path: `${out}/desktop-book.png` })
-    await page.goBack()
-    await page.waitForFunction(() => location.hash === '#books')
-    assert.equal(await dialog(page).count(), 0)
-    pass('the book opens with its text and Back closes it')
+    await page.waitForTimeout(500)
+    await page.screenshot({ path: `${out}/desktop-book-room.png` })
+    assert.equal(await dialog(page).count(), 0, 'navigating to book room does not open any overlay')
+    // Now clicking the book should navigate to /books
+    const [response] = await Promise.all([
+      page.waitForNavigation({ waitUntil: 'networkidle' }),
+      page.locator('.hotspot-book').click()
+    ])
+    assert.equal(page.url(), `${baseUrl}/books`)
+    await page.screenshot({ path: `${out}/desktop-library.png` })
+    pass('clicking the book in its room navigates to /books (the library)')
 
-    // Sound preference
+    // Go back and check sound preference
+    await page.goto(`${baseUrl}/#video`, { waitUntil: 'networkidle' })
     await page.locator('.sound-toggle').click()
     assert.equal(await page.locator('.sound-toggle').getAttribute('aria-pressed'), 'true')
     await page.reload({ waitUntil: 'networkidle' })
@@ -124,17 +128,23 @@ try {
     await context.close()
   }
 
-  // Deep links
+  // Deep links: #books/... no longer opens an overlay (book overlay was removed)
   {
     const { context, page, errors } = await openPage({ width: 1280, height: 800 })
+    // #books/placeholder-story used to open the book overlay; now it just goes to book room
     await page.goto(`${baseUrl}/#books/placeholder-story`, { waitUntil: 'networkidle' })
-    await page.locator('.book-text').waitFor()
-    await page.goto(`${baseUrl}/#books/not-a-thing`, { waitUntil: 'networkidle' })
+    assert.equal(await dialog(page).count(), 0, '#books/placeholder-story does not open any overlay')
+    assert.equal(await hash(page), '#books/placeholder-story')
+    // Navigate to video room to test other deep links
+    await page.goto(`${baseUrl}/#video/placeholder-tape`, { waitUntil: 'networkidle' })
+    await dialog(page).waitFor()
+    assert.ok(await page.locator('.vhs-container').isVisible(), 'VHS deep link still works')
+    await page.goto(`${baseUrl}/#video/not-a-thing`, { waitUntil: 'networkidle' })
     assert.equal(await dialog(page).count(), 0)
     await page.goto(`${baseUrl}/#video/placeholder-track`, { waitUntil: 'networkidle' })
     assert.equal(await dialog(page).count(), 0, 'an artifact in the wrong room does not open')
     assert.deepEqual(errors, [])
-    pass('deep links open the right artifact and ignore unknown or mismatched ids')
+    pass('deep links work for video/record; #books/... no longer opens an overlay')
     await context.close()
   }
 
@@ -172,9 +182,6 @@ try {
     assert.ok(close.x >= 0 && close.x + close.width <= width, `close button visible at ${width}px`)
     await page.waitForTimeout(900)
     await page.screenshot({ path: `${out}/mobile-${width}-vhs.png` })
-    await page.goto(`${baseUrl}/#books/placeholder-story`, { waitUntil: 'networkidle' })
-    await page.locator('.book-text').waitFor()
-    await page.screenshot({ path: `${out}/mobile-${width}-book.png` })
     assert.deepEqual(errors, [])
     pass(`tap-to-open and viewer layouts fit at ${width}px`)
     await context.close()

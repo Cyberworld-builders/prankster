@@ -1,5 +1,5 @@
-export type ArtifactType = "video" | "audio" | "text";
-export type RoomId = "video" | "record" | "book";
+export type ArtifactType = "video" | "audio";
+export type RoomId = "video" | "record";
 
 export interface Artifact {
   id: string;
@@ -36,15 +36,6 @@ export const artifacts: Artifact[] = [
     duration: 8,
     placeholder: true,
     description: "A synthetic tone awaiting a real recording.",
-  },
-  {
-    id: "placeholder-story",
-    room: "book",
-    type: "text",
-    title: "Untitled Excerpt",
-    src: "/media/book/placeholder.txt",
-    placeholder: true,
-    description: "A placeholder passage awaiting the real text.",
   },
 ];
 

@@ -1,10 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState, useCallback } from "react";
 import { getFirstArtifactForRoom, getArtifactById, type Artifact } from "@/content/artifacts";
 import { VHSViewer } from "@/components/VHSViewer";
 import { TurntablePlayer } from "@/components/TurntablePlayer";
-import { BookViewer } from "@/components/BookViewer";
 import { SoundToggle } from "@/components/SoundToggle";
 import { AmbientSound } from "@/components/AmbientSound";
 
@@ -97,8 +97,6 @@ export default function Home() {
         return <VHSViewer artifact={activeArtifact} onClose={closeArtifact} />;
       case "audio":
         return <TurntablePlayer artifact={activeArtifact} onClose={closeArtifact} />;
-      case "text":
-        return <BookViewer artifact={activeArtifact} onClose={closeArtifact} />;
       default:
         return null;
     }
@@ -127,14 +125,8 @@ export default function Home() {
           >
             <span>Tapes</span>
           </a>
-          <a
-            className={`hotspot hotspot-book${room === "book" ? " is-here" : ""}`}
-            href={`#${hashes.book}`}
-            aria-current={room === "book" ? "page" : undefined}
-            aria-label={room === "book" ? "Open the book" : "Go to Books"}
-            onClick={(e) => handleHotspotClick("book", e)}
-          >
-            <span>Books</span>
+          <a className={`hotspot hotspot-book${room === "book" ? " is-here" : ""}`} href={room === "book" ? "/books" : `#${hashes.book}`}>
+            <span>{room === "book" ? "Enter the library" : "Books"}</span>
           </a>
           <a
             className={`hotspot hotspot-record${room === "record" ? " is-here" : ""}`}
@@ -149,6 +141,12 @@ export default function Home() {
         <div className="film-grain" aria-hidden="true" />
         <div className="scene-status" aria-live="polite">
           <span className="status-lamp" /> SCARY PRANKSTER <span className="status-divider">/</span> {names[room]}
+          {room === "book" && (
+            <>
+              <span className="status-divider">/</span>
+              <Link href="/books" className="status-enter">Enter the library &rarr;</Link>
+            </>
+          )}
         </div>
         <SoundToggle onSoundChange={setSoundEnabled} />
         <AmbientSound enabled={soundEnabled && !activeArtifact} />

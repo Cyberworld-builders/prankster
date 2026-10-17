@@ -88,3 +88,7 @@ BASE_URL=http://localhost:3000 npm run verify:artifacts
 The first run may need `npx playwright install chromium`. Check your work this way rather than through the Vercel preview, which sits behind Vercel Authentication. Look at the screenshots, not just the `ok` lines.
 
 Build with `npm run build`. This is an experiential prototype, not a finished content player.
+
+## Posts
+
+Posts are MDX files in `content/<room>/<slug>.mdx`, served at `/<room>/<slug>`. The library (`/books`) is the first open room; on the counter, the book leads into it once you're in the book room. See [docs/publishing.md](docs/publishing.md) for the format and the publishing steps.
