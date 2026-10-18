@@ -20,6 +20,34 @@ export interface Work {
   year?: number;
 }
 
+/**
+ * How a locator ref is read: dotted segments, with a range allowed in the last
+ * one. `chapter` takes `2` or `volume.chapter` (`2.2`).
+ */
+export const LOCATOR_SCHEMES = {
+  chapter: [1, 2],
+  "act.scene.line": [3, 3],
+  "stanza.line": [2, 2],
+  line: [1, 1],
+  "book.chapter.verse": [3, 3],
+  "book.section": [2, 2],
+  "section.paragraph": [2, 2],
+} as const;
+export type LocatorScheme = keyof typeof LOCATOR_SCHEMES;
+
+export const RIGHTS = ["public-domain", "copyrighted", "unknown"] as const;
+export type Rights = (typeof RIGHTS)[number];
+
+/** One passage of `work`, quoted in the post body with <Passage>. */
+export interface Fragment {
+  locator: { scheme: LocatorScheme; ref: string; label?: string };
+  edition: string;
+  sourceUrl: string;
+  rights: Rights;
+  translator?: string;
+  rightsNote?: string;
+}
+
 export interface PostMeta {
   title: string;
   description: string;
@@ -29,6 +57,7 @@ export interface PostMeta {
   publishedDate: string;
   modifiedDate: string;
   work?: Work;
+  fragment?: Fragment;
   headerImage?: string;
   headerImageAlt?: string;
   tags?: string[];
@@ -67,6 +96,50 @@ function validateWork(value: unknown, errors: string[]): void {
   if (work.year !== undefined && !Number.isInteger(work.year)) errors.push("work.year must be a whole number");
 }
 
+function isMapping(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function validateFragment(value: unknown, errors: string[]): void {
+  if (!isMapping(value)) {
+    errors.push("fragment must be a mapping with locator, edition, sourceUrl, rights");
+    return;
+  }
+  for (const key of Object.keys(value)) {
+    if (!["locator", "edition", "sourceUrl", "rights", "translator", "rightsNote"].includes(key)) errors.push(`unknown field fragment.${key}`);
+  }
+
+  const locator = value.locator;
+  if (!isMapping(locator)) {
+    errors.push("fragment.locator must be a mapping with scheme and ref");
+  } else {
+    for (const key of Object.keys(locator)) {
+      if (!["scheme", "ref", "label"].includes(key)) errors.push(`unknown field fragment.locator.${key}`);
+    }
+    const scheme = locator.scheme as LocatorScheme;
+    const ref = locator.ref;
+    if (!(scheme in LOCATOR_SCHEMES)) {
+      errors.push(`fragment.locator.scheme must be one of ${Object.keys(LOCATOR_SCHEMES).join(", ")}`);
+    } else if (typeof ref !== "string" || !ref) {
+      errors.push('fragment.locator.ref is required; quote it ("5.5.19-28")');
+    } else {
+      const [min, max] = LOCATOR_SCHEMES[scheme];
+      const segments = ref.split(".");
+      if (segments.length < min || segments.length > max || segments.some((s) => !s)) {
+        errors.push(`fragment.locator.ref "${ref}" doesn't fit scheme ${scheme}`);
+      }
+    }
+    if (locator.label !== undefined && typeof locator.label !== "string") errors.push("fragment.locator.label must be a string");
+  }
+
+  if (typeof value.edition !== "string" || !value.edition) errors.push("fragment.edition is required");
+  if (typeof value.sourceUrl !== "string" || !value.sourceUrl.startsWith("https://")) errors.push("fragment.sourceUrl must be an https:// URL");
+  if (!RIGHTS.includes(value.rights as Rights)) errors.push(`fragment.rights must be one of ${RIGHTS.join(", ")}`);
+  for (const key of ["translator", "rightsNote"]) {
+    if (value[key] !== undefined && typeof value[key] !== "string") errors.push(`fragment.${key} must be a string`);
+  }
+}
+
 function validate(room: RoomId, file: string, data: Record<string, unknown>): PostMeta {
   const errors: string[] = [];
   const meta: Record<string, unknown> = { room };
@@ -83,6 +156,8 @@ function validate(room: RoomId, file: string, data: Record<string, unknown>): Po
       if (!KINDS.includes(value as Kind)) errors.push(`kind must be one of ${KINDS.join(", ")}`);
     } else if (key === "work") {
       validateWork(value, errors);
+    } else if (key === "fragment") {
+      validateFragment(value, errors);
     } else {
       errors.push(`unknown field ${key}`);
     }
@@ -96,6 +171,7 @@ function validate(room: RoomId, file: string, data: Record<string, unknown>): Po
   if ((meta.kind === "dig" || meta.kind === "what-if") && !meta.work) {
     errors.push(`work is required for a ${meta.kind}`);
   }
+  if (meta.fragment && !meta.work) errors.push("work is required with fragment");
   if (meta.headerImage && !meta.headerImageAlt) errors.push("headerImageAlt is required with headerImage");
   const expectedSlug = path.basename(file, ".mdx");
   if (meta.slug && meta.slug !== expectedSlug) errors.push(`slug "${meta.slug}" must match the filename "${expectedSlug}"`);
