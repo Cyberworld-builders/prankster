@@ -70,11 +70,64 @@ build, and so the Vercel preview, with a message naming the file and field.
 | `work` | for `dig` and `what-if` | the real work: `title` (required), `creator`, `year`. A what-if must name it so the alternate stays distinct from canon |
 | `publishedDate` | yes | `YYYY-MM-DD`; quote it |
 | `modifiedDate` | no | `YYYY-MM-DD`; defaults to `publishedDate` |
+| `fragment` | no | the passage a post quotes; needs `work`. See Fragments below |
 | `headerImage`, `headerImageAlt` | no | path under `public/`; alt text is required with an image. Without one, a cover is generated from `work` or the title |
 | `tags`, `keywords` | no | lists of strings |
 | `isDraft` | no | `true`/`false` |
 
 Any other field is rejected.
+
+### Fragments
+
+A fragment post quotes one contiguous passage of `work`, usually as a `find`
+(a `dig` when the note around it becomes an essay). The frontmatter says where
+the passage is; the passage itself goes in the body inside `<Passage>`, which
+adds a citation line and a link to the full source.
+
+```yaml
+kind: find
+work:
+  title: Macbeth
+  creator: William Shakespeare
+fragment:
+  locator:
+    scheme: act.scene.line
+    ref: "5.5.19-28"
+  edition: "Project Gutenberg eBook #1533"
+  sourceUrl: https://www.gutenberg.org/ebooks/1533
+  rights: public-domain
+```
+
+```mdx
+<Passage verse>
+She should have died hereafter.
+There would have been a time for such a word.
+</Passage>
+```
+
+| Field | Required | Notes |
+|---|---|---|
+| `locator.scheme` | yes | how `ref` reads, below |
+| `locator.ref` | yes | dotted segments, a range allowed in the last; quote it |
+| `locator.label` | no | display text when the scheme can't say it ("Henry Jekyll's Full Statement, ¶2") |
+| `edition` | yes | the exact text quoted from; line and verse numbers are relative to it |
+| `sourceUrl` | yes | `https://` link to that edition |
+| `rights` | yes | `public-domain`, `copyrighted` or `unknown`. A label, not a legal call |
+| `translator`, `rightsNote` | no | strings |
+
+| Scheme | Ref | Shown as |
+|---|---|---|
+| `chapter` | `2`, or `2.2` for volume.chapter | ch. 2 / vol. 2, ch. 2 |
+| `act.scene.line` | `5.5.19-28` | 5.5.19–28 |
+| `stanza.line` | `1.1-6` | st. 1, ll. 1–6 |
+| `line` | `12-14` | ll. 12–14 |
+| `book.chapter.verse` | `ecclesiastes.3.1-8` | Ecclesiastes 3:1–8 |
+| `book.section` | `2.1` | II.1 |
+| `section.paragraph` | `1.1` | §1 ¶1 |
+
+Copy the passage verbatim from the cited edition, punctuation included. Use
+`<Passage verse>` for verse so line breaks stay. A post's framing, title and
+description are Jay's; until he writes them, leave `[JAY: …]` placeholders.
 
 ### Drafts
 
@@ -102,7 +155,8 @@ material then.
 
 Make that later step cheap: say where each excerpt comes from (edition,
 album, or film and timestamp) and whether it is public domain or
-copyrighted. Until the frontmatter has a field for it, put this in the post
+copyrighted. For a quoted passage, that is the `fragment` field; for other
+excerpts, until the frontmatter has a field for them, put it in the post
 body.
 
 ### Body rules

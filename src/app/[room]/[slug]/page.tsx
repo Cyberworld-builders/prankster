@@ -4,8 +4,8 @@ import { notFound } from "next/navigation";
 import { MDXRemote } from "next-mdx-remote/rsc";
 import remarkGfm from "remark-gfm";
 import BookCover from "@/components/BookCover";
-import { mdxComponents } from "@/components/mdx/MdxComponents";
-import { KIND_LABELS, formatDate } from "@/lib/format";
+import { postComponents } from "@/components/mdx/MdxComponents";
+import { KIND_LABELS, formatDate, formatLocator } from "@/lib/format";
 import { getPost, postsInRoom } from "@/lib/posts";
 import { ROOMS, SITE_URL, openRooms, type RoomId } from "@/lib/rooms";
 
@@ -85,6 +85,17 @@ export default async function PostPage({ params }: PostProps) {
           },
         }
       : {}),
+    ...(meta.work && meta.fragment
+      ? {
+          citation: {
+            "@type": "CreativeWork",
+            name: `${meta.work.title}, ${formatLocator(meta.fragment.locator)}`,
+            isPartOf: { "@type": "CreativeWork", name: meta.work.title, version: meta.fragment.edition },
+            url: meta.fragment.sourceUrl,
+            ...(meta.fragment.translator ? { translator: { "@type": "Person", name: meta.fragment.translator } } : {}),
+          },
+        }
+      : {}),
   };
 
   return (
@@ -132,7 +143,7 @@ export default async function PostPage({ params }: PostProps) {
         </p>
 
         <div className="page-body">
-          <MDXRemote source={body} components={mdxComponents} options={{ mdxOptions: { remarkPlugins: [remarkGfm] } }} />
+          <MDXRemote source={body} components={postComponents(meta)} options={{ mdxOptions: { remarkPlugins: [remarkGfm] } }} />
         </div>
       </article>
 
